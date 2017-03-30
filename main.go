@@ -2,13 +2,14 @@ package main
 
 import (
 	"bytes"
-	"encoding/csv"
+	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"path"
+
+	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -30,26 +31,46 @@ func init() {
 	flag.StringVar(&flagMode, "m", "", "Mode: 'customer' or 'bank'")
 }
 
-func readInvoice(filePath string) (values [][]string, err error) {
-	file, err := os.Open(filePath)
+// func readInvoice(filePath string) (values [][]string, err error) {
+// 	file, err := os.Open(filePath)
+// 	if err != nil {
+// 		return
+// 	}
+// 	defer file.Close()
+
+// 	reader := csv.NewReader(file)
+// 	for {
+// 		lineValues, err := reader.Read()
+// 		if err == io.EOF {
+// 			break
+// 		} else if err != nil {
+// 			fmt.Fprintf(os.Stderr, "Can't read CSV: %v\n", err)
+// 			return nil, err
+// 		}
+// 		values = append(values, lineValues)
+// 	}
+
+// 	return
+// }
+
+func readInvoice(filePath string) (invoiceData map[interface{}]interface{}, err error) {
+	bytes, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return
 	}
-	defer file.Close()
 
-	reader := csv.NewReader(file)
-	for {
-		lineValues, err := reader.Read()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			fmt.Fprintf(os.Stderr, "Can't read CSV: %v\n", err)
-			return nil, err
-		}
-		values = append(values, lineValues)
+	var data interface{}
+	err = yaml.Unmarshal(bytes, &data)
+	if err != nil {
+		return
 	}
 
-	return
+	invoiceData, ok := data.(map[interface{}]interface{})
+	if !ok {
+		return nil, errors.New("Yaml root object is not dictionary")
+	}
+
+	return invoiceData, nil
 }
 
 func readTemplate(filePath string) (template string, err error) {
@@ -93,11 +114,18 @@ func main() {
 	}
 	invoiceFilePath := flag.Arg(0)
 
-	invoiceValues, err := readInvoice(invoiceFilePath)
+	invoiceData, err := readInvoice(invoiceFilePath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Can't read invoice: %v\n", err)
-		return
 	}
+
+	fmt.Println(invoiceData)
+
+	// invoiceValues, err := readInvoice(invoiceFilePath)
+	// if err != nil {
+	// 	fmt.Fprintf(os.Stderr, "Can't read invoice: %v\n", err)
+	// 	return
+	// }
 
 	// template, err := readTemplate(flagTemplateFilePath)
 	// if err != nil {
@@ -105,5 +133,5 @@ func main() {
 	// 	return
 	// }
 
-	fmt.Println(produceInvoiceTable(invoiceValues))
+	//fmt.Println(produceInvoiceTable(invoiceValues))
 }
