@@ -1,0 +1,31 @@
+date: 2017-04-01
+invoice_prefix: LC
+title: John Doe
+subtitle: individual entrepreneur
+contact_info: |
+  Street str, 7, 42
+  Omsk
+  Russia
+  Phone: +7 123 098 67 45
+  Email: <a href="john@doooe.com">john@doooe.com</a>
+bank_info: |
+  Bank Name: «AVANGARD» Joint Stock BANK
+  SWIFT code: AVJS RU MM
+  Account name: IP JOHN FOOEVICH DOE
+  Account number: 12345 678 9 0123 4567890
+  Bank Branch Name: Central branch
+  Bank Address: 1 building, 12, Sadovnicheskaya st.
+  Bank City/Suburb: Moscow
+  Bank State/Province: Moscow
+  Bank Post Code: 113035
+contractor: |
+  Loud &amp; Clear Services Pty Ltd Creative
+  <App> application development
+  (Contractor Agreement dated xx.xx.xxxx)
+invoice:
+  - [Dates,Hours worked,Amount (in $AUD)]
+  - [March 1-5, 40, 1000]
+  - [March 8-12, 40, 1000]
+  - [March 15-19, 40, 1000]
+  - [March 22-26, 40, 1000]
+received_usd: 0

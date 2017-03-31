@@ -8,8 +8,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"gopkg.in/yaml.v2"
 )
@@ -23,6 +25,7 @@ var (
 const (
 	kInvoiceKey        = "invoice"
 	kDateKey           = "date"
+	kReceivedUsdKey    = "received_usd"
 	kGenInvoiceKey     = "gen_invoice"
 	kGenDateCreatedKey = "gen_date_created"
 	kGenDateDueKey     = "gen_date_due"
@@ -30,7 +33,7 @@ const (
 
 func usage() {
 	fmt.Fprintf(os.Stderr, "Usage:\n\n")
-	fmt.Fprintf(os.Stderr, "\t%s [options] <invoice.csv>\n", path.Base(os.Args[0]))
+	fmt.Fprintf(os.Stderr, "\t%s [options] <invoice.yaml>\n", path.Base(os.Args[0]))
 	fmt.Fprintf(os.Stderr, "\nOptions are:\n\n")
 	flag.PrintDefaults()
 }
@@ -38,30 +41,7 @@ func usage() {
 func init() {
 	flag.StringVar(&flagTemplateFilePath, "t", "", "Template file path")
 	flag.StringVar(&flagConfigFilePath, "c", "", "Config file path")
-	flag.StringVar(&flagMode, "m", "", "Mode: 'customer' or 'bank'")
 }
-
-// func readInvoice(filePath string) (values [][]string, err error) {
-// 	file, err := os.Open(filePath)
-// 	if err != nil {
-// 		return
-// 	}
-// 	defer file.Close()
-
-// 	reader := csv.NewReader(file)
-// 	for {
-// 		lineValues, err := reader.Read()
-// 		if err == io.EOF {
-// 			break
-// 		} else if err != nil {
-// 			fmt.Fprintf(os.Stderr, "Can't read CSV: %v\n", err)
-// 			return nil, err
-// 		}
-// 		values = append(values, lineValues)
-// 	}
-
-// 	return
-// }
 
 func readInvoice(filePath string) (invoiceData map[string]interface{}, err error) {
 	bytes, err := ioutil.ReadFile(filePath)
@@ -93,27 +73,121 @@ func readInvoice(filePath string) (invoiceData map[string]interface{}, err error
 	return invoiceData, nil
 }
 
-func produceInvoiceTable(invoiceValues [][]interface{}) string {
+func produceInvoiceTable(invoiceValues [][]interface{}, totalLineCount int) string {
 	var invoiceTableBuffer bytes.Buffer
 
 	for i, lineValues := range invoiceValues {
-		isLastValue := i == len(invoiceValues)-1
-		possibleLastString := ""
-		if isLastValue {
-			possibleLastString = " last"
+		class := "item"
+		if i == 0 {
+			class = "heading"
+		} else if i >= (len(invoiceValues) - totalLineCount) {
+			class = "total"
 		}
-		fmt.Fprintf(&invoiceTableBuffer, "\t<tr class=\"item%v\">\n", possibleLastString)
+		fmt.Fprintf(&invoiceTableBuffer, "\t<tr class=\"%v\">\n", class)
 		for _, value := range lineValues {
 			fmt.Fprintf(&invoiceTableBuffer, "\t\t<td>%v</td>\n", value)
 		}
 
 		fmt.Fprintf(&invoiceTableBuffer, "\t</tr>\n")
-		if !isLastValue {
-			fmt.Fprintf(&invoiceTableBuffer, "\n")
-		}
 	}
 
 	return invoiceTableBuffer.String()
+}
+
+func calculateInvoiceTotal(invoiceValues [][]interface{}) (invoiceTotalLine []interface{}, total float64, err error) {
+	if len(invoiceValues) == 0 {
+		return
+	}
+	firstLine := invoiceValues[0]
+
+	if len(firstLine) == 0 {
+		return nil, 0, errors.New("Invoice table header is empty")
+	}
+
+	amountColumnIndex := -1
+	hoursColumnIndex := -1
+	for i, value := range firstLine {
+		valueAsString, ok := value.(string)
+		if ok {
+			if strings.Contains(strings.ToLower(valueAsString), "amount") {
+				amountColumnIndex = i
+			} else if strings.Contains(strings.ToLower(valueAsString), "hours") {
+				hoursColumnIndex = i
+			}
+		}
+	}
+
+	if amountColumnIndex == -1 {
+		fmt.Fprintf(os.Stderr, "Can't find column with \"Amount\", assuming it is last column.")
+		amountColumnIndex = len(firstLine) - 1
+	}
+
+	if hoursColumnIndex == -1 {
+		fmt.Fprintf(os.Stderr, "Can't find column with \"Hours\", will omit hours in total line.")
+	}
+
+	total = 0.0
+	hoursTotal := 0.0
+
+	for i := 1; i < len(invoiceValues); i++ {
+		line := invoiceValues[i]
+		if amountColumnIndex >= len(line) {
+			fmt.Fprintf(os.Stderr, "Missing amount at line %v.\n", i)
+		} else {
+			amount := interfaceToFloat(line[amountColumnIndex])
+			total += amount
+		}
+		if hoursColumnIndex < len(line) {
+			hours := interfaceToFloat(line[hoursColumnIndex])
+			hoursTotal += hours
+		}
+	}
+
+	for i := 0; i <= amountColumnIndex; i++ {
+		if i == 0 {
+			invoiceTotalLine = append(invoiceTotalLine, "Total")
+		} else if i == amountColumnIndex {
+			invoiceTotalLine = append(invoiceTotalLine, fmt.Sprintf("%v", total))
+		} else if i == hoursColumnIndex {
+			invoiceTotalLine = append(invoiceTotalLine, fmt.Sprintf("%v", hoursTotal))
+		} else {
+			invoiceTotalLine = append(invoiceTotalLine, "")
+		}
+	}
+
+	return
+}
+
+func interfaceToFloat(value interface{}) float64 {
+	switch typedValue := value.(type) {
+	case float64:
+		return typedValue
+	case float32:
+		return float64(typedValue)
+	case int:
+		return float64(typedValue)
+	case uint:
+		return float64(typedValue)
+	case string:
+		floatValue, _ := strconv.ParseFloat(typedValue, 10)
+		return floatValue
+	default:
+		return 0.0
+	}
+}
+
+func makeTotalLineInUsd(total float64, totalInUsd float64, columnCount int) (totalLine []interface{}) {
+	for i := 0; i < columnCount; i++ {
+		if i == 0 {
+			totalLine = append(totalLine, fmt.Sprintf("Total in USD using USD/AUD rate = %.6f", totalInUsd/total))
+		} else if i == columnCount-1 {
+			totalLine = append(totalLine, fmt.Sprintf("%v", totalInUsd))
+		} else {
+			totalLine = append(totalLine, "")
+		}
+	}
+
+	return
 }
 
 func convertInvoiceTable(invoiceTable interface{}) (invoiceValues [][]interface{}, err error) {
@@ -174,10 +248,41 @@ func main() {
 		return
 	}
 
-	invoiceTableAsString := produceInvoiceTable(invoiceTableAsArrayOfArrays)
+	invoiceTotalLine, total, err := calculateInvoiceTotal(invoiceTableAsArrayOfArrays)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Can't calculate total: %v\n", err)
+	} else {
+		invoiceTableAsArrayOfArrays = append(invoiceTableAsArrayOfArrays, invoiceTotalLine)
+	}
+
+	totalLineCount := 1
+
+	if invoiceData[kReceivedUsdKey] != nil {
+		totalInUsd := interfaceToFloat(invoiceData[kReceivedUsdKey])
+		if totalInUsd != 0 {
+			totalLineInUsd := makeTotalLineInUsd(total, totalInUsd, len(invoiceTotalLine))
+			invoiceTableAsArrayOfArrays = append(invoiceTableAsArrayOfArrays, totalLineInUsd)
+			totalLineCount++
+		}
+	}
+
+	invoiceTableAsString := produceInvoiceTable(invoiceTableAsArrayOfArrays, totalLineCount)
 	invoiceData[kGenInvoiceKey] = invoiceTableAsString
-	invoiceData[kGenDateCreatedKey] = invoiceData[kDateKey]
-	invoiceData[kGenDateDueKey] = invoiceData[kDateKey]
+
+	if invoiceData[kDateKey] != nil {
+		dateValue := invoiceData[kDateKey]
+		if dateAsString, ok := dateValue.(string); ok {
+			date, err := time.Parse("2006-01-02", dateAsString)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Can't parse '%v': %v\n", kDateKey, err)
+			} else {
+				invoiceData[kDateKey] = date.Format("20060102")
+				invoiceData[kGenDateCreatedKey] = date.Format("2 January 2006")
+				dueDate := date.AddDate(0, 0, 14)
+				invoiceData[kGenDateDueKey] = dueDate.Format("2 January 2006")
+			}
+		}
+	}
 
 	tmpl, err := template.ParseFiles(flagTemplateFilePath)
 	if err != nil {
