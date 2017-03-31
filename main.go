@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/user"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"text/template"
@@ -23,9 +25,12 @@ var (
 )
 
 const (
+	kConfigDir         = ".genInvoice"
 	kInvoiceKey        = "invoice"
 	kDateKey           = "date"
 	kReceivedUsdKey    = "received_usd"
+	kHourlyRateKey     = "hourly_rate"
+	kCurrencyKey       = "currency"
 	kGenInvoiceKey     = "gen_invoice"
 	kGenDateCreatedKey = "gen_date_created"
 	kGenDateDueKey     = "gen_date_due"
@@ -39,8 +44,15 @@ func usage() {
 }
 
 func init() {
-	flag.StringVar(&flagTemplateFilePath, "t", "", "Template file path")
-	flag.StringVar(&flagConfigFilePath, "c", "", "Config file path")
+	defaultTemplateFilePath := ""
+	defaultConfigFilePath := ""
+	usr, err := user.Current()
+	if err == nil {
+		defaultTemplateFilePath = filepath.Join(usr.HomeDir, ".genInvoice", "Invoice.html.tmpl")
+		defaultConfigFilePath = filepath.Join(usr.HomeDir, ".genInvoice", "config.yaml")
+	}
+	flag.StringVar(&flagTemplateFilePath, "t", defaultTemplateFilePath, "Template file path")
+	flag.StringVar(&flagConfigFilePath, "c", defaultConfigFilePath, "Config file path")
 }
 
 func readInvoice(filePath string) (invoiceData map[string]interface{}, err error) {
@@ -179,7 +191,7 @@ func interfaceToFloat(value interface{}) float64 {
 func makeTotalLineInUsd(total float64, totalInUsd float64, columnCount int) (totalLine []interface{}) {
 	for i := 0; i < columnCount; i++ {
 		if i == 0 {
-			totalLine = append(totalLine, fmt.Sprintf("Total in USD using USD/AUD rate = %.6f", totalInUsd/total))
+			totalLine = append(totalLine, fmt.Sprintf("Total in USD using USD/AUD rate = %.6f", total/totalInUsd))
 		} else if i == columnCount-1 {
 			totalLine = append(totalLine, fmt.Sprintf("%v", totalInUsd))
 		} else {
@@ -234,10 +246,20 @@ func main() {
 	}
 	invoiceFilePath := flag.Arg(0)
 
+	configData, _ := readInvoice(flagConfigFilePath)
+
 	invoiceData, err := readInvoice(invoiceFilePath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Can't read invoice: %v\n", err)
 		return
+	}
+
+	if configData != nil {
+		for key, value := range configData {
+			if invoiceData[key] == nil {
+				invoiceData[key] = value
+			}
+		}
 	}
 
 	appendBrsToMultilineStringsInInvoiceData(invoiceData)
