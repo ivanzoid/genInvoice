@@ -364,6 +364,8 @@ func generateSampleInvoiceForMonth(monthOffset int) {
 			weekEndDay = -1
 		}
 	}
+
+	fmt.Printf("received_usd: 0\n")
 }
 
 func main() {
