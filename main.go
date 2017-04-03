@@ -22,6 +22,7 @@ var (
 	flagTemplateFilePath string
 	flagConfigFilePath   string
 	flagMode             string
+	flagGenerateForMonth string
 )
 
 const (
@@ -55,6 +56,7 @@ func init() {
 	}
 	flag.StringVar(&flagTemplateFilePath, "t", defaultTemplateFilePath, "Template file path")
 	flag.StringVar(&flagConfigFilePath, "c", defaultConfigFilePath, "Config file path")
+	flag.StringVar(&flagGenerateForMonth, "g", "", "If given, sample invoice (in YAML) for specified month index will be generated")
 }
 
 func log(format string, args ...interface{}) {
@@ -327,12 +329,61 @@ func appendBrsToMultilineStringsInInvoiceData(invoiceData map[string]interface{}
 	}
 }
 
+func isWorkDay(t time.Time) bool {
+	return t.Weekday() >= time.Monday && t.Weekday() <= time.Friday
+}
+
+func daysInMonth(t time.Time) int {
+	return time.Date(t.Year(), t.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()
+}
+
+func generateSampleInvoiceForMonth(monthOffset int) {
+	fmt.Printf("date: %v\n", time.Now().Format("2006-01-02"))
+	fmt.Printf("invoice:\n")
+	fmt.Printf("  - [Dates,Hours worked,Amount]\n")
+
+	dayMonthAgo := time.Now().AddDate(0, -monthOffset, 0)
+	firstDayInMonth := dayMonthAgo.AddDate(0, 0, -(dayMonthAgo.Day() - 1))
+	totalDays := daysInMonth(firstDayInMonth)
+	weekStartDay := -1
+	weekEndDay := -1
+	for day := 0; day <= totalDays; day++ {
+		t := firstDayInMonth.AddDate(0, 0, day)
+		if isWorkDay(t) {
+			if weekStartDay == -1 && day != totalDays {
+				weekStartDay = day
+			}
+		} else {
+			if weekStartDay != -1 {
+				weekEndDay = day - 1
+			}
+		}
+		if weekStartDay != -1 && weekEndDay != -1 {
+			fmt.Printf("  - [%v %v-%v,%v]\n", firstDayInMonth.Format("January"), weekStartDay+1, weekEndDay+1, (weekEndDay-weekStartDay+1)*8)
+			weekStartDay = -1
+			weekEndDay = -1
+		}
+	}
+}
+
 func main() {
 	flag.Parse()
+
+	if len(flagGenerateForMonth) != 0 {
+		monthOffset, err := strconv.ParseInt(flagGenerateForMonth, 10, 0)
+		if err != nil {
+			log("Can't parse month: %v\n", err)
+		} else {
+			generateSampleInvoiceForMonth(int(monthOffset))
+		}
+		return
+	}
+
 	if flag.NArg() < 1 {
 		usage()
 		return
 	}
+
 	invoiceFilePath := flag.Arg(0)
 
 	configData, _ := readInvoice(flagConfigFilePath)
