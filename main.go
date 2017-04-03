@@ -56,7 +56,7 @@ func init() {
 	}
 	flag.StringVar(&flagTemplateFilePath, "t", defaultTemplateFilePath, "Template file path")
 	flag.StringVar(&flagConfigFilePath, "c", defaultConfigFilePath, "Config file path")
-	flag.StringVar(&flagGenerateForMonth, "g", "", "If given, sample invoice (in YAML) for specified month index will be generated")
+	flag.StringVar(&flagGenerateForMonth, "g", "", "If given, sample invoice for specified month will be generated.\n\tYou may use 'prev' and 'this' as month.\n\tYou may also specify month as number of months to rewind in past.")
 }
 
 func log(format string, args ...interface{}) {
@@ -342,7 +342,7 @@ func generateSampleInvoiceForMonth(monthOffset int) {
 	fmt.Printf("invoice:\n")
 	fmt.Printf("  - [Dates,Hours worked,Amount]\n")
 
-	dayMonthAgo := time.Now().AddDate(0, -monthOffset, 0)
+	dayMonthAgo := time.Now().AddDate(0, monthOffset, 0)
 	firstDayInMonth := dayMonthAgo.AddDate(0, 0, -(dayMonthAgo.Day() - 1))
 	totalDays := daysInMonth(firstDayInMonth)
 	weekStartDay := -1
@@ -370,12 +370,19 @@ func main() {
 	flag.Parse()
 
 	if len(flagGenerateForMonth) != 0 {
-		monthOffset, err := strconv.ParseInt(flagGenerateForMonth, 10, 0)
-		if err != nil {
-			log("Can't parse month: %v\n", err)
+		monthOffset := 0
+		if flagGenerateForMonth == "this" {
+		} else if flagGenerateForMonth == "prev" {
+			monthOffset = 1
 		} else {
-			generateSampleInvoiceForMonth(int(monthOffset))
+			monthOffsetAsInt64, err := strconv.ParseInt(flagGenerateForMonth, 10, 0)
+			if err != nil {
+				log("Can't parse month: %v\n", err)
+				return
+			}
+			monthOffset = int(monthOffsetAsInt64)
 		}
+		generateSampleInvoiceForMonth(-monthOffset)
 		return
 	}
 
