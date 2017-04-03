@@ -32,6 +32,7 @@ const (
 	kReceivedUsdKey    = "received_usd"
 	kHourlyRateKey     = "hourly_rate"
 	kCurrencyKey       = "currency"
+	kInvoicePrefixKey  = "invoice_prefix"
 	kGenInvoiceKey     = "gen_invoice"
 	kGenDateCreatedKey = "gen_date_created"
 	kGenDateDueKey     = "gen_date_due"
@@ -82,7 +83,7 @@ func readInvoice(filePath string) (invoiceData map[string]interface{}, err error
 
 	invoiceData = make(map[string]interface{})
 
-	log("Using data from %v\n", filePath)
+	log("Reading data from %v\n", filePath)
 
 	for key, value := range invoiceUntilteredData {
 		if keyAsString, ok := key.(string); ok {
@@ -206,6 +207,9 @@ func appendOrFillAmountIfNeeded(invoiceValues [][]interface{}, hourlyRate float6
 }
 
 func interfaceToFloat(value interface{}) float64 {
+	if value == nil {
+		return 0.0
+	}
 	switch typedValue := value.(type) {
 	case float64:
 		return typedValue
@@ -436,13 +440,11 @@ func main() {
 
 	totalLineCount := 1
 
-	if invoiceData[kReceivedUsdKey] != nil {
-		totalInUsd := interfaceToFloat(invoiceData[kReceivedUsdKey])
-		if totalInUsd != 0 {
-			totalLineInUsd := makeTotalLineInUsd(total, totalInUsd, len(invoiceTotalLine))
-			invoiceTable = append(invoiceTable, totalLineInUsd)
-			totalLineCount++
-		}
+	totalInUsd := interfaceToFloat(invoiceData[kReceivedUsdKey])
+	if totalInUsd != 0.0 {
+		totalLineInUsd := makeTotalLineInUsd(total, totalInUsd, len(invoiceTotalLine))
+		invoiceTable = append(invoiceTable, totalLineInUsd)
+		totalLineCount++
 	}
 
 	invoiceTableAsString := produceInvoiceTable(invoiceTable, totalLineCount)
@@ -471,7 +473,24 @@ func main() {
 
 	log("Using template %v\n", flagTemplateFilePath)
 
-	err = tmpl.Execute(os.Stdout, invoiceData)
+	invoiceDate := invoiceData[kDateKey]
+	invoicePrefix := invoiceData[kInvoicePrefixKey]
+	optionalUsdSuffix := ""
+	if totalInUsd != 0.0 {
+		optionalUsdSuffix = "-USD"
+	}
+
+	outFileName := fmt.Sprintf("Invoice-%v-%v%v.html", invoicePrefix, invoiceDate, optionalUsdSuffix)
+	outFile, err := os.Create(outFileName)
+	if err != nil {
+		log("Can't create file %v: %v\n", outFileName, err)
+		return
+	}
+	defer outFile.Close()
+
+	log("Writing to %v\n", outFileName)
+
+	err = tmpl.Execute(outFile, invoiceData)
 	if err != nil {
 		log("Can't render template: %v\n", err)
 		return
