@@ -122,12 +122,12 @@ func calculateInvoiceTotal(invoiceValues [][]interface{}) (invoiceTotalLine []in
 	hoursColumnIndex := findHoursColumnIndex(invoiceValues)
 
 	if amountColumnIndex == -1 {
-		err = errors.New(fmt.Sprintf("Can't find column with \"%v\".", kAmount))
+		err = errors.New(fmt.Sprintf("Can't find column with \"%v\".\n", kAmount))
 		return
 	}
 
 	if hoursColumnIndex == -1 {
-		log("Can't find column with \"%v\", will omit hours in total line.", kHours)
+		log("Can't find column with \"%v\", will omit hours in total line.\n", kHours)
 	}
 
 	total = 0.0
@@ -171,14 +171,14 @@ func appendOrFillAmountIfNeeded(invoiceValues [][]interface{}, hourlyRate float6
 	hoursColumnIndex := findHoursColumnIndex(invoiceValues)
 
 	if amountColumnIndex == -1 {
-		log("Can't find column with \"%v\", will append to the right column.", kAmount)
+		log("Can't find column with \"%v\", will append to the right column.\n", kAmount)
 		amountColumnIndex = len(firstLine)
 		invoiceValues[0] = append(invoiceValues[0], "Amount")
 	}
 
 	if hoursColumnIndex == -1 {
 		if amountColumnIndex == -1 {
-			log("Can't find columns with \"%v\" or \"%v\".", kAmount, kHours)
+			log("Can't find columns with \"%v\" or \"%v\".\n", kAmount, kHours)
 			return
 		}
 	}
