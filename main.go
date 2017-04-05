@@ -141,7 +141,7 @@ func calculateInvoiceTotal(invoiceValues [][]interface{}) (invoiceTotalLine []in
 			amount := interfaceToFloat(line[amountColumnIndex])
 			total += amount
 		}
-		if hoursColumnIndex < len(line) {
+		if hoursColumnIndex != -1 && hoursColumnIndex < len(line) {
 			hours := interfaceToFloat(line[hoursColumnIndex])
 			hoursTotal += hours
 		}
@@ -186,7 +186,7 @@ func appendOrFillAmountIfNeeded(invoiceValues [][]interface{}, hourlyRate float6
 	for i := 1; i < len(invoiceValues); i++ {
 		line := invoiceValues[i]
 
-		if hoursColumnIndex >= len(line) {
+		if hoursColumnIndex == -1 || hoursColumnIndex >= len(line) {
 			log("Missing hours column at line %v.\n", i)
 			continue
 		}
