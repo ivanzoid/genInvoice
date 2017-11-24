@@ -19,13 +19,10 @@ bank_info: |
   Bank State/Province: Moscow
   Bank Post Code: 113035
 contractor: |
-  Loud &amp; Clear Services Pty Ltd Creative
+  Foo &amp; Bar Services Ltd
   <App> application development
   (Contractor Agreement dated xx.xx.xxxx)
 invoice:
-  - [Dates,Hours worked,Amount]
-  - [March 1-5, 40]
-  - [March 8-12, 40, 2000]
-  - [March 15-19, 40]
-  - [March 22-26, 40]
+  - [Dates,Amount]
+  - [March 1-5, 4000]
 received_usd: 3000
