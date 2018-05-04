@@ -151,7 +151,7 @@ func calculateInvoiceTotal(invoiceValues [][]interface{}) (invoiceTotalLine []in
 		if i == 0 {
 			invoiceTotalLine = append(invoiceTotalLine, "Total")
 		} else if i == amountColumnIndex {
-			invoiceTotalLine = append(invoiceTotalLine, fmt.Sprintf("%v", total))
+			invoiceTotalLine = append(invoiceTotalLine, fmt.Sprintf("%.02f", total))
 		} else if i == hoursColumnIndex {
 			invoiceTotalLine = append(invoiceTotalLine, fmt.Sprintf("%v", hoursTotal))
 		} else {
